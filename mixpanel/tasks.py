@@ -2,8 +2,10 @@ import httplib
 import urllib
 import base64
 import urlparse
-import logging
 import socket
+
+import logging
+log = logging.getLogger("app." + __name__)
 
 from django.utils import simplejson
 
@@ -38,23 +40,19 @@ class EventTracker(Task):
         `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
         if the event requests should actually be stored on the Mixpanel servers.
         """
-        l = self.get_logger(**kwargs)
-        l.info("Recording event: <%s>" % event_name)
-        if l.logger.getEffectiveLevel() == logging.DEBUG:
-            httplib.HTTPConnection.debuglevel = 1
+        log.info("Recording event: <%s>" % event_name)
 
         is_test = self._is_test(test)
         generated_properties = self._handle_properties(properties, token)
 
         url_params = self._build_params(event_name, generated_properties, is_test)
-        l.debug("url_params: <%s>" % url_params)
         conn = self._get_connection()
 
         try:
             result = self._send_request(conn, url_params)
         except EventTracker.FailedEventRequest, exception:
             conn.close()
-            l.info("Event failed. Retrying: <%s>" % event_name)
+            log.info("Event failed. Retrying: <%s>" % event_name)
             kwargs.update({
                 'properties': properties,
                 'token': token,
@@ -67,9 +65,9 @@ class EventTracker(Task):
             return
         conn.close()
         if result:
-            l.info("Event recorded/logged: <%s>" % event_name)
+            log.info("Event recorded/logged: <%s>" % event_name)
         else:
-            l.info("Event ignored: <%s>" % event_name)
+            log.info("Event ignored: <%s>" % event_name)
 
         return result
 
@@ -101,8 +99,7 @@ class EventTracker(Task):
                 token = mp_settings.MIXPANEL_API_TOKEN
             properties['token'] = token
 
-        l = self.get_logger()
-        l.debug('pre-encoded properties: <%s>' % repr(properties))
+        log.debug('pre-encoded properties: <%s>' % repr(properties))
 
         return properties
 
@@ -179,8 +176,7 @@ class FunnelEventTracker(EventTracker):
         `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
         if the event requests should actually be stored on the Mixpanel servers.
         """
-        l = self.get_logger(**kwargs)
-        l.info("Recording funnel: <%s>-<%s>" % (funnel, step))
+        log.info("Recording funnel: <%s>-<%s>" % (funnel, step))
         properties = self._handle_properties(properties, token)
 
         is_test = self._is_test(test)
@@ -188,14 +184,13 @@ class FunnelEventTracker(EventTracker):
 
         url_params = self._build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID,
                                         properties, is_test)
-        l.debug("url_params: <%s>" % url_params)
         conn = self._get_connection()
 
         try:
             result = self._send_request(conn, url_params)
         except EventTracker.FailedEventRequest, exception:
             conn.close()
-            l.info("Funnel failed. Retrying: <%s>-<%s>" % (funnel, step))
+            log.info("Funnel failed. Retrying: <%s>-<%s>" % (funnel, step))
             kwargs.update({
                 'token': token,
                 'test': test})
@@ -207,9 +202,9 @@ class FunnelEventTracker(EventTracker):
             return
         conn.close()
         if result:
-            l.info("Funnel recorded/logged: <%s>-<%s>" % (funnel, step))
+            log.info("Funnel recorded/logged: <%s>-<%s>" % (funnel, step))
         else:
-            l.info("Funnel ignored: <%s>-<%s>" % (funnel, step))
+            log.info("Funnel ignored: <%s>-<%s>" % (funnel, step))
 
         return result
 
