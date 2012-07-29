@@ -1,11 +1,10 @@
 import httplib
 import urllib
 import base64
-import urlparse
 import socket
 
-import logging
-log = logging.getLogger("app." + __name__)
+from celery.utils.log import get_task_logger
+log = get_task_logger(__name__)
 
 from django.utils import simplejson
 
@@ -13,6 +12,7 @@ from celery.task import Task
 from celery.registry import tasks
 
 from mixpanel.conf import settings as mp_settings
+
 
 class EventTracker(Task):
     """
@@ -64,10 +64,6 @@ class EventTracker(Task):
                        throw=throw_retry_error)
             return
         conn.close()
-        if result:
-            log.info("Event recorded/logged: <%s>" % event_name)
-        else:
-            log.info("Event ignored: <%s>" % event_name)
 
         return result
 
@@ -98,8 +94,6 @@ class EventTracker(Task):
             if token is None:
                 token = mp_settings.MIXPANEL_API_TOKEN
             properties['token'] = token
-
-        log.debug('pre-encoded properties: <%s>' % repr(properties))
 
         return properties
 
@@ -147,6 +141,7 @@ class EventTracker(Task):
         return True
 
 tasks.register(EventTracker)
+
 
 class FunnelEventTracker(EventTracker):
     """
@@ -201,15 +196,11 @@ class FunnelEventTracker(EventTracker):
                        throw=throw_retry_error)
             return
         conn.close()
-        if result:
-            log.info("Funnel recorded/logged: <%s>-<%s>" % (funnel, step))
-        else:
-            log.info("Funnel ignored: <%s>-<%s>" % (funnel, step))
 
         return result
 
     def _add_funnel_properties(self, properties, funnel, step, goal):
-        if not properties.has_key('distinct_id'):
+        if not 'distinct_id' in properties:
             error_msg = "A ``distinct_id`` must be given to record a funnel event"
             raise FunnelEventTracker.InvalidFunnelProperties(error_msg)
         properties['funnel'] = funnel
