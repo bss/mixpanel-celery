@@ -176,7 +176,7 @@ def _build_people_params(distinct_id, properties, is_test):
     if 'set' in properties:
         params['$set'] = properties['set']
     if 'increment' in properties:
-        params['$increment'] = properties['increment']
+        params['$add'] = properties['increment']
     data = base64.b64encode(simplejson.dumps(params))
 
     data_var = mp_settings.MIXPANEL_DATA_VARIABLE
