@@ -100,3 +100,12 @@ MIXPANEL_FUNNEL_EVENT_ID = getattr(settings, 'MIXPANEL_FUNNEL_EVENT_ID',
     test = 1 so that no events will actually be logged.
 """
 MIXPANEL_TEST_ONLY = getattr(settings, 'MIXPANEL_TEST_ONLY', False)
+
+"""
+.. data:: MIXPANEL_RESERVED_PEOPLE_PROPERTIES
+
+    List of mixpanel reserved properties for people. They have to be sent with $
+
+"""
+MIXPANEL_RESERVED_PEOPLE_PROPERTIES = getattr(settings, 'MIXPANEL_RESERVED_PEOPLE_PROPERTIES',
+    ['email', 'first_name', 'last_name', 'created', 'last_login', 'username', 'country_code'])

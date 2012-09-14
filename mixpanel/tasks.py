@@ -174,6 +174,11 @@ def _build_people_params(distinct_id, properties, is_test):
     """
     params = {'$distinct_id': distinct_id,'$token': mp_settings.MIXPANEL_API_TOKEN}
     if 'set' in properties:
+        #adding $ to any reserved mixpanel vars
+        for special_prop in mp_settings.MIXPANEL_RESERVED_PEOPLE_PROPERTIES:
+            if special_prop in properties['set']:
+                properties['set']['${}'.format(special_prop)] = properties['set'][special_prop]
+                del properties['set'][special_prop]
         params['$set'] = properties['set']
     if 'increment' in properties:
         params['$add'] = properties['increment']
