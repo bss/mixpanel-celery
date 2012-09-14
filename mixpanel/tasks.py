@@ -16,6 +16,39 @@ from mixpanel.conf import settings as mp_settings
 celery = Celery('mixpanel')
 celery.config_from_object(settings)
 
+@celery.task(name="mixpanel.tasks.PeopleTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+def people_tracker(distinct_id, properties=None, token=None, test=None, throw_retry_error=False):
+    """
+    Track an event occurrence to mixpanel through the API.
+
+    ``event_name`` is the string for the event/category you'd like to log
+    this event under
+    ``properties`` is (optionally) a dictionary of key/value pairs
+    describing the event.
+    ``token`` is (optionally) your Mixpanel api token. Not required if
+    you've already configured your MIXPANEL_API_TOKEN setting.
+    ``test`` is an optional override to your
+    `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
+    if the event requests should actually be stored on the Mixpanel servers.
+    """
+    log.info("Recording people datapoint: <%s>" % distinct_id)
+
+    is_test = _is_test(test)
+
+    url_params = _build_people_params(distinct_id, properties, is_test)
+    conn = _get_connection()
+
+    try:
+        result = _send_request(conn, url_params)
+    except FailedEventRequest, exception:
+        conn.close()
+        log.info("Event failed. Retrying: <%s>" % event_name)
+        raise event_tracker.retry(exc=exception,
+            countdown=mp_settings.MIXPANEL_RETRY_DELAY,
+            throw=throw_retry_error)
+    conn.close()
+    return result
+
 @celery.task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def event_tracker(event_name, properties=None, token=None, test=None, throw_retry_error=False):
     """
@@ -134,6 +167,22 @@ def _get_connection():
     # Wish we could use python 2.6's httplib timeout support
     socket.setdefaulttimeout(mp_settings.MIXPANEL_API_TIMEOUT)
     return httplib.HTTPConnection(server)
+
+def _build_people_params(distinct_id, properties, is_test):
+    """
+    Build HTTP params to record the given event and properties.
+    """
+    params = {'$distinct_id': distinct_id,'$token': mp_settings.MIXPANEL_API_TOKEN}
+    if 'set' in properties:
+        params['$set'] = properties['set']
+    if 'increment' in properties:
+        params['$increment'] = properties['increment']
+    data = base64.b64encode(simplejson.dumps(params))
+
+    data_var = mp_settings.MIXPANEL_DATA_VARIABLE
+    url_params = urllib.urlencode({data_var: data, 'test': is_test})
+
+    return url_params
 
 def _build_params(event, properties, is_test):
     """

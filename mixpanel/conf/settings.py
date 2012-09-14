@@ -65,6 +65,16 @@ MIXPANEL_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_TRACKING_ENDPOINT',
                                '/track/')
 
 """
+.. data:: MIXPANEL_PEOPLE_TRACKING_ENDPOINT
+
+    URL endpoint for registering people data. defaults to ``/engage/``
+
+    Mind the slashes.
+"""
+MIXPANEL_PEOPLE_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_PEOPLE_TRACKING_ENDPOINT',
+    '/engage/')
+
+"""
 .. data:: MIXPANEL_DATA_VARIABLE
 
     Name of the http GET variable used for transferring property information
