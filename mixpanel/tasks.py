@@ -39,7 +39,7 @@ def people_tracker(distinct_id, properties=None, token=None, test=None, throw_re
     conn = _get_connection()
 
     try:
-        result = _send_request(conn, url_params)
+        result = _send_request(conn, url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
     except FailedEventRequest, exception:
         conn.close()
         log.info("Event failed. Retrying: <%s>" % event_name)
@@ -196,13 +196,12 @@ def _build_params(event, properties, is_test):
 
     return url_params
 
-def _send_request(connection, params):
+def _send_request(connection, params, endpoint=mp_settings.MIXPANEL_TRACKING_ENDPOINT):
     """
     Send a an event with its properties to the api server.
 
     Returns ``true`` if the event was logged by Mixpanel.
     """
-    endpoint = mp_settings.MIXPANEL_TRACKING_ENDPOINT
     try:
         connection.request('GET', '%s?%s' % (endpoint, params))
 
