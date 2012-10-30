@@ -42,7 +42,7 @@ def people_tracker(distinct_id, properties=None, token=None, test=None, throw_re
         result = _send_request(conn, url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
     except FailedEventRequest, exception:
         conn.close()
-        log.info("Event failed. Retrying: <%s>" % event_name)
+        log.info("Event failed. Retrying: user <%s>" % distinct_id)
         raise event_tracker.retry(exc=exception,
             countdown=mp_settings.MIXPANEL_RETRY_DELAY,
             throw=throw_retry_error)
