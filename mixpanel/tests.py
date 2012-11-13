@@ -1,14 +1,13 @@
-import unittest
-import base64
-import urllib
-import logging
-
-from django.utils import simplejson
+from __future__ import absolute_import
 
 from celery.exceptions import RetryTaskError
+from django.utils import simplejson
+import base64
+import unittest
+import urllib
 
-from mixpanel import tasks
-from mixpanel.conf import settings as mp_settings
+from . import tasks
+from .conf import settings as mp_settings
 
 class EventTrackerTest(unittest.TestCase):
     def setUp(self):
@@ -158,3 +157,4 @@ class FunnelEventTrackerTest(unittest.TestCase):
         result = tasks.funnel_event_tracker(funnel, step, goal, {'distinct_id': 'test_user'})
 
         self.assertTrue(result)
+
