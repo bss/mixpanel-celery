@@ -10,8 +10,9 @@ events. Waiting on HTTP requests to Mixpanel's api to complete every time you
 want to record something slows you down. Using mixpanel-celery gives you all of
 the Mixpanel goodness without any of the potential performance impact.
 
-mixpanel-celery works great with Django, but because Celery works with just
-python, so does mixpanel-celery.
+In theory mixpanel-celery could work without Django, because Celery can
+work without Django, but in practice this module depends on Django
+presently, especially for testing.
 
 For full documenation vist the `online mixpanel-celery documentation`_ 
 (or build the `sphinx`_ documentation yourself).
