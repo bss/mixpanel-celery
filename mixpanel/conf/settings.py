@@ -94,14 +94,6 @@ MIXPANEL_FUNNEL_EVENT_ID = getattr(settings, 'MIXPANEL_FUNNEL_EVENT_ID',
                                'mp_funnel')
 
 """
-.. data:: MIXPANEL_TEST_ONLY
-
-    If this value is True, then events will be sent to Mixpanel with the property
-    test = 1 so that no events will actually be logged.
-"""
-MIXPANEL_TEST_ONLY = getattr(settings, 'MIXPANEL_TEST_ONLY', False)
-
-"""
 .. data:: MIXPANEL_RESERVED_PEOPLE_PROPERTIES
 
     List of mixpanel reserved properties for people. They have to be sent with $

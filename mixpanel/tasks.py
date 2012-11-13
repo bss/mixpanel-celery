@@ -14,7 +14,7 @@ from django.utils import simplejson
 from .conf import settings as mp_settings
 
 @task(name="mixpanel.tasks.PeopleTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
-def people_tracker(distinct_id, properties=None, token=None, test=None, throw_retry_error=False):
+def people_tracker(distinct_id, properties=None, token=None, throw_retry_error=False):
     """
     Track an event occurrence to mixpanel through the API.
 
@@ -24,15 +24,10 @@ def people_tracker(distinct_id, properties=None, token=None, test=None, throw_re
     describing the event.
     ``token`` is (optionally) your Mixpanel api token. Not required if
     you've already configured your MIXPANEL_API_TOKEN setting.
-    ``test`` is an optional override to your
-    `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
-    if the event requests should actually be stored on the Mixpanel servers.
     """
     log.info("Recording people datapoint: <%s>" % distinct_id)
 
-    is_test = _is_test(test)
-
-    url_params = _build_people_params(distinct_id, properties, is_test)
+    url_params = _build_people_params(distinct_id, properties)
     conn = _get_connection()
 
     try:
@@ -47,7 +42,7 @@ def people_tracker(distinct_id, properties=None, token=None, test=None, throw_re
     return result
 
 @task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
-def event_tracker(event_name, properties=None, token=None, test=None, throw_retry_error=False):
+def event_tracker(event_name, properties=None, token=None, throw_retry_error=False):
     """
     Track an event occurrence to mixpanel through the API.
 
@@ -57,16 +52,12 @@ def event_tracker(event_name, properties=None, token=None, test=None, throw_retr
     describing the event.
     ``token`` is (optionally) your Mixpanel api token. Not required if
     you've already configured your MIXPANEL_API_TOKEN setting.
-    ``test`` is an optional override to your
-    `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
-    if the event requests should actually be stored on the Mixpanel servers.
     """
     log.info("Recording event: <%s>" % event_name)
 
-    is_test = _is_test(test)
     generated_properties = _handle_properties(properties, token)
 
-    url_params = _build_params(event_name, generated_properties, is_test)
+    url_params = _build_params(event_name, generated_properties)
     conn = _get_connection()
 
 
@@ -82,8 +73,7 @@ def event_tracker(event_name, properties=None, token=None, test=None, throw_retr
     return result
 
 @task(name="mixpanel.tasks.FunnelEventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
-def funnel_event_tracker(funnel, step, goal, properties, token=None, test=None,
-        throw_retry_error=False):
+def funnel_event_tracker(funnel, step, goal, properties, token=None, throw_retry_error=False):
     """
     Track an event occurrence to mixpanel through the API.
 
@@ -95,18 +85,13 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None, test=None,
     describing the funnel event. A ``distinct_id`` is required.
     ``token`` is (optionally) your Mixpanel api token. Not required if
     you've already configured your MIXPANEL_API_TOKEN setting.
-    ``test`` is an optional override to your
-    `:data:mixpanel.conf.settings.MIXPANEL_TEST_ONLY` setting for determining
-    if the event requests should actually be stored on the Mixpanel servers.
     """
     log.info("Recording funnel: <%s>-<%s>" % (funnel, step))
     properties = _handle_properties(properties, token)
 
-    is_test = _is_test(test)
     properties = _add_funnel_properties(properties, funnel, step, goal)
 
-    url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID,
-                                    properties, is_test)
+    url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID, properties)
     conn = _get_connection()
 
     try:
@@ -127,22 +112,6 @@ class FailedEventRequest(Exception):
 class InvalidFunnelProperties(Exception):
     """Required properties were missing from the funnel-tracking call"""
     pass
-
-def _is_test(test):
-    """
-    Determine whether this event should be logged as a test request, meaning
-    it won't actually be stored on the Mixpanel servers. A return result of
-    1 means this will be a test, 0 means it won't as per the API spec.
-
-    Uses ``:mod:mixpanel.conf.settings.MIXPANEL_TEST_ONLY`` as the default
-    if no explicit test option is given.
-    """
-    if test == None:
-        test = mp_settings.MIXPANEL_TEST_ONLY
-
-    if test:
-        return 1
-    return 0
 
 def _handle_properties(properties, token):
     """
@@ -165,7 +134,7 @@ def _get_connection():
     socket.setdefaulttimeout(mp_settings.MIXPANEL_API_TIMEOUT)
     return httplib.HTTPConnection(server)
 
-def _build_people_params(distinct_id, properties, is_test):
+def _build_people_params(distinct_id, properties):
     """
     Build HTTP params to record the given event and properties.
     """
@@ -182,11 +151,11 @@ def _build_people_params(distinct_id, properties, is_test):
     data = base64.b64encode(simplejson.dumps(params))
 
     data_var = mp_settings.MIXPANEL_DATA_VARIABLE
-    url_params = urllib.urlencode({data_var: data, 'test': is_test})
+    url_params = urllib.urlencode({data_var: data})
 
     return url_params
 
-def _build_params(event, properties, is_test):
+def _build_params(event, properties):
     """
     Build HTTP params to record the given event and properties.
     """
@@ -194,7 +163,7 @@ def _build_params(event, properties, is_test):
     data = base64.b64encode(simplejson.dumps(params))
 
     data_var = mp_settings.MIXPANEL_DATA_VARIABLE
-    url_params = urllib.urlencode({data_var: data, 'test': is_test})
+    url_params = urllib.urlencode({data_var: data})
 
     return url_params
 

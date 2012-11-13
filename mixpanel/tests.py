@@ -14,7 +14,6 @@ class EventTrackerTest(unittest.TestCase):
         mp_settings.MIXPANEL_API_TOKEN = 'testtesttest'
         mp_settings.MIXPANEL_API_SERVER = 'api.mixpanel.com'
         mp_settings.MIXPANEL_TRACKING_ENDPOINT = '/track/'
-        mp_settings.MIXPANEL_TEST_ONLY = True
 
     def test_handle_properties_w_token(self):
         properties = tasks._handle_properties({}, 'foo')
@@ -40,28 +39,15 @@ class EventTrackerTest(unittest.TestCase):
         properties = tasks._handle_properties({'token': 'bar'}, 'foo')
         self.assertEqual('bar', properties['token'])
 
-    def test_is_test(self):
-
-        self.assertEqual(tasks._is_test(None), 1)
-        self.assertEqual(tasks._is_test(False), 0)
-        self.assertEqual(tasks._is_test(True), 1)
-
-        mp_settings.MIXPANEL_TEST_ONLY = False
-        self.assertEqual(tasks._is_test(None), 0)
-        self.assertEqual(tasks._is_test(False), 0)
-        self.assertEqual(tasks._is_test(True), 1)
-
     def test_build_params(self):
         event = 'foo_event'
-        is_test = 1
         properties = {'token': 'testtoken'}
         params = {'event': event, 'properties': properties}
 
-        url_params = tasks._build_params(event, properties, is_test)
+        url_params = tasks._build_params(event, properties)
 
         expected_params = urllib.urlencode({
             'data':base64.b64encode(simplejson.dumps(params)),
-            'test':is_test,
         })
 
         self.assertEqual(expected_params, url_params)
@@ -105,7 +91,6 @@ class FunnelEventTrackerTest(unittest.TestCase):
         mp_settings.MIXPANEL_API_TOKEN = 'testtesttest'
         mp_settings.MIXPANEL_API_SERVER = 'api.mixpanel.com'
         mp_settings.MIXPANEL_TRACKING_ENDPOINT = '/track/'
-        mp_settings.MIXPANEL_TEST_ONLY = True
 
     def test_afp_validation(self):
 
