@@ -1,9 +1,8 @@
 from __future__ import absolute_import
 
-import httplib
 import urllib
+import urllib2
 import base64
-import socket
 
 from celery.task import task
 from celery.utils.log import get_task_logger
@@ -28,17 +27,14 @@ def people_tracker(distinct_id, properties=None, token=None, throw_retry_error=F
     log.info("Recording people datapoint: <%s>" % distinct_id)
 
     url_params = _build_people_params(distinct_id, properties)
-    conn = _get_connection()
 
     try:
-        result = _send_request(conn, url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
+        result = _send_request(url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
     except FailedEventRequest, exception:
-        conn.close()
         log.info("Event failed. Retrying: user <%s>" % distinct_id)
         raise event_tracker.retry(exc=exception,
             countdown=mp_settings.MIXPANEL_RETRY_DELAY,
             throw=throw_retry_error)
-    conn.close()
     return result
 
 @task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
@@ -58,18 +54,14 @@ def event_tracker(event_name, properties=None, token=None, throw_retry_error=Fal
     generated_properties = _handle_properties(properties, token)
 
     url_params = _build_params(event_name, generated_properties)
-    conn = _get_connection()
-
 
     try:
-        result = _send_request(conn, url_params)
+        result = _send_request(url_params)
     except FailedEventRequest, exception:
-        conn.close()
         log.info("Event failed. Retrying: <%s>" % event_name)
         raise event_tracker.retry(exc=exception,
                    countdown=mp_settings.MIXPANEL_RETRY_DELAY,
                    throw=throw_retry_error)
-    conn.close()
     return result
 
 @task(name="mixpanel.tasks.FunnelEventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
@@ -92,17 +84,14 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None, throw_retry
     properties = _add_funnel_properties(properties, funnel, step, goal)
 
     url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID, properties)
-    conn = _get_connection()
 
     try:
-        result = _send_request(conn, url_params)
+        result = _send_request(url_params)
     except FailedEventRequest, exception:
-        conn.close()
         log.info("Funnel failed. Retrying: <%s>-<%s>" % (funnel, step))
         raise funnel_event_tracker.retry(exc=exception,
                    countdown=mp_settings.MIXPANEL_RETRY_DELAY,
                    throw=throw_retry_error)
-    conn.close()
     return result
 
 class FailedEventRequest(Exception):
@@ -126,13 +115,6 @@ def _handle_properties(properties, token):
         properties['token'] = token
 
     return properties
-
-def _get_connection():
-    server = mp_settings.MIXPANEL_API_SERVER
-
-    # Wish we could use python 2.6's httplib timeout support
-    socket.setdefaulttimeout(mp_settings.MIXPANEL_API_TIMEOUT)
-    return httplib.HTTPConnection(server)
 
 def _build_people_params(distinct_id, properties):
     """
@@ -167,28 +149,20 @@ def _build_params(event, properties):
 
     return url_params
 
-def _send_request(connection, params, endpoint=mp_settings.MIXPANEL_TRACKING_ENDPOINT):
+def _send_request(params, endpoint=mp_settings.MIXPANEL_TRACKING_ENDPOINT):
     """
     Send a an event with its properties to the api server.
 
     Returns ``true`` if the event was logged by Mixpanel.
     """
+    url = 'https://%s%s?%s' % (mp_settings.MIXPANEL_API_SERVER, endpoint, params)
     try:
-        connection.request('GET', '%s?%s' % (endpoint, params))
+        response = urllib2.urlopen(url, None, mp_settings.MIXPANEL_API_TIMEOUT)
+    except urllib2.URLError as e:
+        raise FailedEventRequest("Tracking request failed: %s" % e)
 
-        response = connection.getresponse()
-    except socket.error, message:
-        raise FailedEventRequest("The tracking request failed with a socket error. Message: [%s]" % message)
-
-    if response.status != 200 or response.reason != 'OK':
-        raise FailedEventRequest("The tracking request failed. Non-200 response code was: %s %s" % (response.status, response.reason))
-
-    # Successful requests will generate a log
-    response_data = response.read()
-    if response_data != '1':
-        return False
-
-    return True
+    # Successful request gets a single-byte response of "1" from mixpanel
+    return response.read() == '1'
 
 def _add_funnel_properties(properties, funnel, step, goal):
     if not 'distinct_id' in properties:
