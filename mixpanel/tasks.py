@@ -12,7 +12,7 @@ from django.utils import simplejson
 
 from .conf import settings as mp_settings
 
-@task(name="mixpanel.tasks.PeopleTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def people_tracker(distinct_id, properties=None, token=None):
     """
     Track an event occurrence to mixpanel through the API.
@@ -35,7 +35,7 @@ def people_tracker(distinct_id, properties=None, token=None):
         raise people_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
     return result
 
-@task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def event_tracker(event_name, properties=None, token=None):
     """
     Track an event occurrence to mixpanel through the API.
@@ -60,7 +60,7 @@ def event_tracker(event_name, properties=None, token=None):
         raise event_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
     return result
 
-@task(name="mixpanel.tasks.FunnelEventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def funnel_event_tracker(funnel, step, goal, properties, token=None):
     """
     Track an event occurrence to mixpanel through the API.
