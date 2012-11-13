@@ -1,54 +1,48 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import codecs
-import sys
-import os
 
-from setuptools import setup, find_packages, Command
+from setuptools import setup
+import codecs
+import os
+import re
+import sys
 
 import mixpanel
 
-class RunTests(Command):
-    description = "Run the test suite from the tests dir."
-    user_options = []
-    extra_env = {}
 
-    def run(self):
-        for env_name, env_value in self.extra_env.items():
-            os.environ[env_name] = str(env_value)
+def get_packages(package):
+    """
+    Return root package and all sub-packages.
+    """
+    return [dirpath
+            for dirpath, dirnames, filenames in os.walk(package)
+            if os.path.exists(os.path.join(dirpath, '__init__.py'))]
 
-        setup_dir = os.path.abspath(os.path.dirname(__file__))
-        tests_dir = os.path.join(setup_dir, 'testproj')
-        os.chdir(tests_dir)
-        sys.path.append(tests_dir)
 
-        try:
-            from nose.core import TestProgram
-        except ImportError:
-            print 'nose is required to run this test suite'
-            sys.exit(1)
+def get_package_data(package):
+    """
+    Return all files under the root package, that are not in a
+    package themselves.
+    """
+    walk = [(dirpath.replace(package + os.sep, '', 1), filenames)
+            for dirpath, dirnames, filenames in os.walk(package)
+            if not os.path.exists(os.path.join(dirpath, '__init__.py'))]
 
-        print "Mixpanel %s test suite running (Python %s)..." % (
-            mixpanel.__version__, sys.version.split()[0])
-        args = [
-            '-v',
-            '--with-id',
-            '--with-doctest',
-            '--with-coverage', '--cover-erase', '--cover-package', 'mixpanel',
-            'mixpanel',
-        ]
-        TestProgram(argv=args, exit=False)
+    filepaths = []
+    for base, filenames in walk:
+        filepaths.extend([os.path.join(base, filename)
+                          for filename in filenames])
+    return {package: filepaths}
 
-        os.chdir(setup_dir)
-        rabbitmq_msg = "Rabbitmq must be configured with a '/' vhost and "
-        rabbitmq_msg += "username/password of 'guest' for all tests to pass"
-        print rabbitmq_msg
 
-    def initialize_options(self):
-        pass
+if sys.argv[-1] == 'publish':
+    os.system("python setup.py sdist upload")
+    args = {'version': get_version(package)}
+    print "You probably want to also tag the version now:"
+    print "  git tag -a %(version)s -m 'version %(version)s'" % args
+    print "  git push --tags"
+    sys.exit()
 
-    def finalize_options(self):
-        pass
 
 long_description = codecs.open("README.rst", "r", "utf-8").read()
 
@@ -59,14 +53,13 @@ setup(
     author=mixpanel.__author__,
     author_email=mixpanel.__contact__,
     url=mixpanel.__homepage__,
-    platforms=["any"],
-    license="BSD",
-    packages=find_packages(),
+    platforms=['any'],
+    license='BSD',
+    packages=get_packages('mixpanel'),
+    package_data=get_package_data('mixpanel'),
     scripts=[],
     zip_safe=False,
-    install_requires=['celery>=1.0', 'django>=1.2'],
-    tests_require=['nose>=0.11', 'coverage'],
-    cmdclass = {'nosetests': RunTests},
+    install_requires=['celery>=3.0', 'django>=1.3'],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Framework :: Django",
