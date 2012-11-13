@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
 import base64
+import json
 import unittest
 import urllib
 import urllib2
+import urlparse
 
 from celery.exceptions import RetryTaskError
-from django.utils import simplejson
 
 from mock import MagicMock as Mock
 import mock
@@ -23,45 +24,159 @@ class TestCase(unittest.TestCase):
         self.mock_urlopen = patcher.start()
         self.mock_urlopen.return_value.read.return_value = '1'
 
+    @staticmethod
+    def assertDictEqual(a, b):
+        assert a == b, "Dicts are not equal.\nExpected: %s\nActual: %s" % (
+            json.dumps(b, indent=3, sort_keys=True),
+            json.dumps(a, indent=3, sort_keys=True))
+
+    def _test_any(self, task, *args, **kwargs):
+        result = kwargs.pop('result', True)
+        server = kwargs.pop('server', mp_settings.MIXPANEL_API_SERVER)
+        endpoint = kwargs.pop('endpoint', mp_settings.MIXPANEL_TRACKING_ENDPOINT)
+        data = kwargs.pop('data', {})
+
+        actual = task(*args, **kwargs)
+
+        self.assertTrue(self.mock_urlopen.called)
+        self.assertEqual(actual, result)
+
+        url = self.mock_urlopen.call_args[0][0]
+        scheme, netloc, path, params, querystr, frag = urlparse.urlparse(url)
+        query = urlparse.parse_qs(querystr, keep_blank_values=True, strict_parsing=True)
+        self.assertEqual(netloc, server)
+        self.assertEqual(path, endpoint)
+        self.assertEqual(query.keys(), ['data'])
+        datastr = base64.b64decode(query['data'][0])
+        actual = json.loads(datastr)
+        self.assertDictEqual(actual, data)
+
 
 class EventTrackerTest(TestCase):
-    def test_handle_properties_w_token(self):
-        properties = tasks._handle_properties({}, 'foo')
-        self.assertEqual('foo', properties['token'])
+    def _test_event(self, *args, **kwargs):
+        return self._test_any(tasks.event_tracker, *args, **kwargs)
 
-    def test_handle_properties_no_token(self):
-        mp_settings.MIXPANEL_API_TOKEN = 'bar'
+    def test_event(self):
+        self._test_event('clicked button',
+            data={
+                "event": "clicked button",
+                "properties": { "token": "testmixpanel" },
+                },
+            )
 
-        properties = tasks._handle_properties({}, None)
-        self.assertEqual('bar', properties['token'])
+    def test_event_props(self):
+        self._test_event('User logged in',
+            properties={
+                "distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "partner": True,
+                "userid": 456,
+                "code": "double oh 7",
+                },
+            data={
+                "event": "User logged in",
+                "properties": {
+                    "distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                    "partner": True,
+                    "userid": 456,
+                    "code": "double oh 7",
+                    "token": "testmixpanel",
+                    },
+                },
+            )
 
-    def test_handle_properties_empty(self):
-        mp_settings.MIXPANEL_API_TOKEN = 'bar'
+    def test_event_token(self):
+        self._test_event('Override token', token="footoken",
+            data={
+                "event": "Override token",
+                "properties": { "token": "footoken" },
+                },
+            )
 
-        properties = tasks._handle_properties(None, None)
-        self.assertEqual('bar', properties['token'])
 
-    def test_handle_properties_given(self):
+class PeopleTrackerTest(TestCase):
+    def _test_people(self, *args, **kwargs):
+        kwargs.setdefault('endpoint', mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
+        return self._test_any(tasks.people_tracker, *args, **kwargs)
 
-        properties = tasks._handle_properties({'token': 'bar'}, None)
-        self.assertEqual('bar', properties['token'])
+    def test_people(self):
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            data={
+                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "$token": "testmixpanel",
+                }
+            )
 
-        properties = tasks._handle_properties({'token': 'bar'}, 'foo')
-        self.assertEqual('bar', properties['token'])
 
-    def test_build_params(self):
-        event = 'foo_event'
-        properties = {'token': 'testtoken'}
-        params = {'event': event, 'properties': properties}
+    def test_people_props(self):
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            properties={
+                "set": {
+                    "first_name": "Aron",
+                    "partner": True,
+                    },
+                },
+            data={
+                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "$token": "testmixpanel",
+                "$set": {
+                    "$first_name": "Aron",
+                    "partner": True,
+                    },
+                })
 
-        url_params = tasks._build_params(event, properties)
+    def test_people_token(self):
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0', token="footoken",
+            data={
+                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "$token": "footoken",
+                })
 
-        expected_params = urllib.urlencode({
-            'data':base64.b64encode(simplejson.dumps(params)),
-        })
 
-        self.assertEqual(expected_params, url_params)
+class FunnelTrackerTest(TestCase):
+    def _test_funnel(self, *args, **kwargs):
+        return self._test_any(tasks.funnel_event_tracker, *args, **kwargs)
 
+    def test_validation(self):
+        funnel = 'test_funnel'
+        step = 'test_step'
+        goal = 'test_goal'
+
+        # Missing distinct_id
+        properties = {}
+        self.assertRaises(tasks.InvalidFunnelProperties,
+            tasks.funnel_event_tracker,
+            funnel, step, goal, properties)
+
+        # With distinct_id
+        properties = {
+            'distinct_id': 'c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            }
+        result = tasks.funnel_event_tracker(funnel, step, goal, properties)
+        self.assertEqual(result, True)
+
+    def test_funnel(self):
+        funnel = 'test_funnel'
+        step = 'test_step'
+        goal = 'test_goal'
+
+        self._test_funnel(funnel, step, goal,
+            properties={
+                'distinct_id': 'c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+                },
+            data={
+                "event": "mp_funnel",
+                "properties": {
+                    "distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                    "funnel": "test_funnel",
+                    "goal": "test_goal",
+                    "step": "test_step",
+                    "token": "testmixpanel"
+                    },
+                },
+            )
+
+
+class FailuresTestCase(TestCase):
     def test_failed_request(self):
         self.mock_urlopen.side_effect = urllib2.URLError("You're doing it wrong")
 
@@ -71,74 +186,7 @@ class EventTrackerTest(TestCase):
                           tasks.event_tracker,
                           'event_foo')
 
-    def test_run(self):
-        # "correct" result obtained from: http://mixpanel.com/api/docs/console
-        result = tasks.event_tracker('event_foo', {})
-
-        self.assertTrue(result)
-
-    def test_old_run(self):
-        """non-recorded events should return False"""
-        # Times older than 3 hours don't get recorded according to: http://mixpanel.com/api/docs/specification
-        # equests will be rejected that are 3 hours older than present time
+    def test_failed_response(self):
         self.mock_urlopen.return_value.read.return_value = '0'
-        result = tasks.event_tracker('event_foo', {'time': 1245613885})
-
-        self.assertFalse(result)
-
-    def test_debug_logger(self):
-        result = tasks.event_tracker('event_foo', {})
-
-        self.assertTrue(result)
-
-
-class FunnelEventTrackerTest(TestCase):
-    def test_afp_validation(self):
-        funnel = 'test_funnel'
-        step = 'test_step'
-        goal = 'test_goal'
-
-        # neither
-        properties = {}
-        self.assertRaises(tasks.InvalidFunnelProperties,
-                          tasks._add_funnel_properties,
-                          properties, funnel, step, goal)
-
-        # only distinct
-        properties = {'distinct_id': 'test_distinct_id'}
-        fp = tasks._add_funnel_properties(properties, funnel, step, goal)
-
-        # only ip
-        properties = {'ip': 'some_ip'}
-        self.assertRaises(tasks.InvalidFunnelProperties,
-                          tasks._add_funnel_properties,
-                          properties, funnel, step, goal)
-
-        # both
-        properties = {'distinct_id': 'test_distinct_id',
-                      'ip': 'some_ip'}
-        fp = tasks._add_funnel_properties(properties, funnel, step, goal)
-
-    def test_afp_properties(self):
-        funnel = 'test_funnel'
-        step = 'test_step'
-        goal = 'test_goal'
-
-        properties = {'distinct_id': 'test_distinct_id'}
-
-        funnel_properties = tasks._add_funnel_properties(properties, funnel,
-                                                       step, goal)
-
-        self.assertEqual(funnel_properties['funnel'], funnel)
-        self.assertEqual(funnel_properties['step'], step)
-        self.assertEqual(funnel_properties['goal'], goal)
-
-    def test_run(self):
-        funnel = 'test_funnel'
-        step = 'test_step'
-        goal = 'test_goal'
-
-        result = tasks.funnel_event_tracker(funnel, step, goal, {'distinct_id': 'test_user'})
-
-        self.assertTrue(result)
-
+        result = tasks.event_tracker('event_foo')
+        self.assertEqual(result, False)

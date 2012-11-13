@@ -26,7 +26,9 @@ def people_tracker(distinct_id, properties=None, token=None):
     """
     log.info("Recording people datapoint: <%s>" % distinct_id)
 
-    url_params = _build_people_params(distinct_id, properties)
+    generated_properties = _handle_properties(properties, token)
+
+    url_params = _build_people_params(distinct_id, generated_properties)
 
     try:
         result = _send_request(url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
@@ -114,7 +116,8 @@ def _build_people_params(distinct_id, properties):
     """
     Build HTTP params to record the given event and properties.
     """
-    params = {'$distinct_id': distinct_id,'$token': mp_settings.MIXPANEL_API_TOKEN}
+    token = properties.pop('token', mp_settings.MIXPANEL_API_TOKEN)
+    params = {'$distinct_id': distinct_id, '$token': token}
     if 'set' in properties:
         #adding $ to any reserved mixpanel vars
         for special_prop in mp_settings.MIXPANEL_RESERVED_PEOPLE_PROPERTIES:
