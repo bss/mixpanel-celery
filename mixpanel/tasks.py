@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import urllib
 import urllib2
 import base64
+import copy
 
 from celery.task import task
 from celery.utils.log import get_task_logger
@@ -21,11 +22,11 @@ def people_tracker(distinct_id, properties=None, token=None):
     ``properties`` is a dict of key/value pairs (optional).
     ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
-    log.info("Recording people datapoint: %r" % distinct_id)
+    log.info("Recording person: %r" % distinct_id)
 
-    generated_properties = _handle_properties(properties, token)
+    props = _build_props(properties, token)
 
-    url_params = _build_people_params(distinct_id, generated_properties)
+    url_params = _build_people_params(distinct_id, props)
 
     try:
         result = _send_request(url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
@@ -45,9 +46,9 @@ def event_tracker(event_name, properties=None, token=None):
     """
     log.info("Recording event: <%s>" % event_name)
 
-    generated_properties = _handle_properties(properties, token)
+    props = _build_props(properties, token)
 
-    url_params = _build_params(event_name, generated_properties)
+    url_params = _build_params(event_name, props)
 
     try:
         result = _send_request(url_params)
@@ -68,11 +69,11 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None):
     ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
     log.info("Recording funnel: %r, step: %r" % (funnel, step))
-    properties = _handle_properties(properties, token)
 
-    properties = _add_funnel_properties(properties, funnel, step, goal)
+    props = _build_props(properties, token)
+    props = _add_funnel_props(props, funnel, step, goal)
 
-    url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID, properties)
+    url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID, props)
 
     try:
         result = _send_request(url_params)
@@ -83,41 +84,34 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None):
 
 class FailedEventRequest(Exception):
     """The attempted recording event failed because of a non-200 HTTP return code"""
-    pass
 
 class InvalidFunnelProperties(Exception):
     """Required properties were missing from the funnel-tracking call"""
-    pass
 
-def _handle_properties(properties, token):
+def _build_props(props, token):
     """
-    Build a properties dictionary, accounting for the token.
+    Returns a new props dictionary including token.
     """
-    if properties == None:
-        properties = {}
-
-    if not properties.get('token', None):
-        if token is None:
-            token = mp_settings.MIXPANEL_API_TOKEN
-        properties['token'] = token
-
-    return properties
+    props = dict(props or {})
+    props.setdefault('token', token or mp_settings.MIXPANEL_API_TOKEN)
+    return props
 
 def _build_people_params(distinct_id, properties):
     """
     Build HTTP params to record the given event and properties.
     """
-    token = properties.pop('token', mp_settings.MIXPANEL_API_TOKEN)
+    props = copy.deepcopy(properties)
+    token = props.pop('token', mp_settings.MIXPANEL_API_TOKEN)
     params = {'$distinct_id': distinct_id, '$token': token}
-    if 'set' in properties:
+    if 'set' in props:
         #adding $ to any reserved mixpanel vars
         for special_prop in mp_settings.MIXPANEL_RESERVED_PEOPLE_PROPERTIES:
-            if special_prop in properties['set']:
-                properties['set']['${}'.format(special_prop)] = properties['set'][special_prop]
-                del properties['set'][special_prop]
-        params['$set'] = properties['set']
-    if 'increment' in properties:
-        params['$add'] = properties['increment']
+            if special_prop in props['set']:
+                props['set']['${}'.format(special_prop)] = props['set'][special_prop]
+                del props['set'][special_prop]
+        params['$set'] = props['set']
+    if 'increment' in props:
+        params['$add'] = props['increment']
     data = base64.b64encode(simplejson.dumps(params))
 
     data_var = mp_settings.MIXPANEL_DATA_VARIABLE
@@ -152,12 +146,16 @@ def _send_request(params, endpoint=mp_settings.MIXPANEL_TRACKING_ENDPOINT):
     # Successful request gets a single-byte response of "1" from mixpanel
     return response.read() == '1'
 
-def _add_funnel_properties(properties, funnel, step, goal):
-    if not 'distinct_id' in properties:
-        error_msg = "A ``distinct_id`` must be given to record a funnel event"
-        raise InvalidFunnelProperties(error_msg)
-    properties['funnel'] = funnel
-    properties['step'] = step
-    properties['goal'] = goal
-
-    return properties
+def _add_funnel_props(props, funnel, step, goal):
+    """
+    Returns a new props dictionary including funnel properties.
+    """
+    props = dict(props or {})
+    if 'distinct_id' not in props:
+        raise InvalidFunnelProperties("distinct_id required for funnel event")
+    props.update(dict(
+        funnel=funnel,
+        step=step,
+        goal=goal,
+        ))
+    return props
