@@ -85,7 +85,8 @@ class EventTrackerTest(TestCase):
             )
 
     def test_event_token(self):
-        self._test_event('Override token', token="footoken",
+        self._test_event('Override token',
+            token="footoken",
             data={
                 "event": "Override token",
                 "properties": { "token": "footoken" },
@@ -98,37 +99,71 @@ class PeopleTrackerTest(TestCase):
         kwargs.setdefault('endpoint', mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
         return self._test_any(tasks.people_tracker, *args, **kwargs)
 
-    def test_people(self):
-        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
-            data={
-                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
-                "$token": "testmixpanel",
-                }
-            )
+    def test_validation(self):
+        self.assertRaises(tasks.InvalidPeopleProperties,
+            tasks.people_tracker, 'foo')
+        self.assertRaises(tasks.InvalidPeopleProperties,
+            tasks.people_tracker, 'foo', set={1:2}, add={3:4})
+        result = tasks.people_tracker('foo', set={1:2})
+        self.assertEqual(result, True)
+        result = tasks.people_tracker('foo', add={3:4})
+        self.assertEqual(result, True)
 
-
-    def test_people_props(self):
+    def test_people_set(self):
         self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
-            properties={
-                "set": {
-                    "first_name": "Aron",
-                    "partner": True,
-                    },
+            set={
+                "$first_name": "Aron",
                 },
             data={
                 "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
                 "$token": "testmixpanel",
                 "$set": {
                     "$first_name": "Aron",
-                    "partner": True,
+                    },
+                })
+
+    def test_people_add(self):
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            add={
+                "visits": 1,
+                },
+            data={
+                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "$token": "testmixpanel",
+                "$add": {
+                    "visits": 1,
                     },
                 })
 
     def test_people_token(self):
-        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0', token="footoken",
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            token="footoken",
+            set={
+                "$first_name": "Aron",
+                },
             data={
                 "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
                 "$token": "footoken",
+                "$set": {
+                    "$first_name": "Aron",
+                    },
+                })
+
+    def test_people_extra(self):
+        self._test_people('c9533b5b-d69e-479a-ae5f-42dd7a9752a0',
+            set={
+                "$first_name": "Aron",
+                },
+            extra={
+                "$ignore_time": True,
+                },
+            data={
+                "$distinct_id": "c9533b5b-d69e-479a-ae5f-42dd7a9752a0",
+                "$token": "testmixpanel",
+                "$ignore_time": True,
+                "$set": {
+                    "$first_name": "Aron",
+                    },
                 })
 
 

@@ -14,22 +14,24 @@ from django.utils import simplejson
 from .conf import settings as mp_settings
 
 @task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
-def people_tracker(distinct_id, properties=None, token=None):
+def people_tracker(distinct_id, set=None, add=None, extra=None, token=None):
     """
-    Send people analytics to mixpanel through the API.
+    Sends people analytics to mixpanel through the API.
+    Returns True if mixpanel accepted the request.
 
     ``distinct_id`` is the user's distinct id.
-    ``properties`` is a dict of key/value pairs (optional).
+    ``set`` is a dict of people values to set.
+    ``add`` is a dict of people values to increment.
+    ``extra`` is top-level params to add to the generated dict.
     ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
     log.info("Recording person: %r" % distinct_id)
 
-    props = _build_props(properties, token)
-
-    url_params = _build_people_params(distinct_id, props)
+    params = _build_people_params(distinct_id, set, add, token)
+    params.update(extra or {})
 
     try:
-        result = _send_request(url_params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
+        result = _send_request(params, mp_settings.MIXPANEL_PEOPLE_TRACKING_ENDPOINT)
     except FailedEventRequest as e:
         log.info("Event failed. Retrying: user <%s>" % distinct_id)
         raise people_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
@@ -38,7 +40,8 @@ def people_tracker(distinct_id, properties=None, token=None):
 @task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def event_tracker(event_name, properties=None, token=None):
     """
-    Track an event occurrence to mixpanel through the API.
+    Tracks an event occurrence to mixpanel through the API.
+    Returns True if mixpanel accepted the request.
 
     ``event_name`` is the event name to record.
     ``properties`` is a dict of key/value pairs (optional).
@@ -47,11 +50,10 @@ def event_tracker(event_name, properties=None, token=None):
     log.info("Recording event: <%s>" % event_name)
 
     props = _build_props(properties, token)
-
-    url_params = _build_params(event_name, props)
+    params = {'event': event_name, 'properties': props}
 
     try:
-        result = _send_request(url_params)
+        result = _send_request(params)
     except FailedEventRequest as e:
         log.info("Event failed. Retrying: %r" % event_name)
         raise event_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
@@ -60,7 +62,8 @@ def event_tracker(event_name, properties=None, token=None):
 @task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def funnel_event_tracker(funnel, step, goal, properties, token=None):
     """
-    Track an event occurrence to mixpanel through the API.
+    Tracks an event occurrence to mixpanel through the API.
+    Returns True if mixpanel accepted the request.
 
     ``funnel`` is funnel name for this event.
     ``step`` is the step in the funnel.
@@ -72,11 +75,10 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None):
 
     props = _build_props(properties, token)
     props = _add_funnel_props(props, funnel, step, goal)
-
-    url_params = _build_params(mp_settings.MIXPANEL_FUNNEL_EVENT_ID, props)
+    params = {'event': mp_settings.MIXPANEL_FUNNEL_EVENT_ID, 'properties': props}
 
     try:
-        result = _send_request(url_params)
+        result = _send_request(params)
     except FailedEventRequest as e:
         log.info("Funnel failed. Retrying: %r, step: %r" % (funnel, step))
         raise funnel_event_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
@@ -88,6 +90,9 @@ class FailedEventRequest(Exception):
 class InvalidFunnelProperties(Exception):
     """Required properties were missing from the funnel-tracking call"""
 
+class InvalidPeopleProperties(Exception):
+    """Invalid combination of people properties"""
+
 def _build_props(props, token):
     """
     Returns a new props dictionary including token.
@@ -96,48 +101,32 @@ def _build_props(props, token):
     props.setdefault('token', token or mp_settings.MIXPANEL_API_TOKEN)
     return props
 
-def _build_people_params(distinct_id, properties):
+def _build_people_params(distinct_id, set, add, token):
     """
-    Build HTTP params to record the given event and properties.
+    Returns a new params dictionary appropriate for people tracking.
     """
-    props = copy.deepcopy(properties)
-    token = props.pop('token', mp_settings.MIXPANEL_API_TOKEN)
-    params = {'$distinct_id': distinct_id, '$token': token}
-    if 'set' in props:
-        #adding $ to any reserved mixpanel vars
-        for special_prop in mp_settings.MIXPANEL_RESERVED_PEOPLE_PROPERTIES:
-            if special_prop in props['set']:
-                props['set']['${}'.format(special_prop)] = props['set'][special_prop]
-                del props['set'][special_prop]
-        params['$set'] = props['set']
-    if 'increment' in props:
-        params['$add'] = props['increment']
-    data = base64.b64encode(simplejson.dumps(params))
+    if not set and not add:
+        raise InvalidPeopleProperties("People analytics requires either $set or $add")
+    if set and add:
+        raise InvalidPeopleProperties("Mixpanel requires $set or $add, not both")
 
-    data_var = mp_settings.MIXPANEL_DATA_VARIABLE
-    url_params = urllib.urlencode({data_var: data})
-
-    return url_params
-
-def _build_params(event, properties):
-    """
-    Build HTTP params to record the given event and properties.
-    """
-    params = {'event': event, 'properties': properties}
-    data = base64.b64encode(simplejson.dumps(params))
-
-    data_var = mp_settings.MIXPANEL_DATA_VARIABLE
-    url_params = urllib.urlencode({data_var: data})
-
-    return url_params
+    params = {}
+    params['$distinct_id'] = distinct_id
+    params['$token'] = token or mp_settings.MIXPANEL_API_TOKEN
+    if set:
+        params['$set'] = dict(set)
+    else:
+        params['$add'] = dict(add)
+    return params
 
 def _send_request(params, endpoint=mp_settings.MIXPANEL_TRACKING_ENDPOINT):
     """
-    Send a an event with its properties to the api server.
-
-    Returns ``true`` if the event was logged by Mixpanel.
+    Sends a an event with its properties to the api server.
+    Returns True if the event was logged by Mixpanel else False.
     """
-    url = 'https://%s%s?%s' % (mp_settings.MIXPANEL_API_SERVER, endpoint, params)
+    data = base64.b64encode(simplejson.dumps(params))
+    querystring = urllib.urlencode({mp_settings.MIXPANEL_DATA_VARIABLE: data})
+    url = 'https://%s%s?%s' % (mp_settings.MIXPANEL_API_SERVER, endpoint, querystring)
     try:
         response = urllib2.urlopen(url, None, mp_settings.MIXPANEL_API_TIMEOUT)
     except urllib2.URLError as e:
