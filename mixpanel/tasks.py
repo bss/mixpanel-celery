@@ -15,16 +15,13 @@ from .conf import settings as mp_settings
 @task(max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def people_tracker(distinct_id, properties=None, token=None):
     """
-    Track an event occurrence to mixpanel through the API.
+    Send people analytics to mixpanel through the API.
 
-    ``event_name`` is the string for the event/category you'd like to log
-    this event under
-    ``properties`` is (optionally) a dictionary of key/value pairs
-    describing the event.
-    ``token`` is (optionally) your Mixpanel api token. Not required if
-    you've already configured your MIXPANEL_API_TOKEN setting.
+    ``distinct_id`` is the user's distinct id.
+    ``properties`` is a dict of key/value pairs (optional).
+    ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
-    log.info("Recording people datapoint: <%s>" % distinct_id)
+    log.info("Recording people datapoint: %r" % distinct_id)
 
     generated_properties = _handle_properties(properties, token)
 
@@ -42,12 +39,9 @@ def event_tracker(event_name, properties=None, token=None):
     """
     Track an event occurrence to mixpanel through the API.
 
-    ``event_name`` is the string for the event/category you'd like to log
-    this event under
-    ``properties`` is (optionally) a dictionary of key/value pairs
-    describing the event.
-    ``token`` is (optionally) your Mixpanel api token. Not required if
-    you've already configured your MIXPANEL_API_TOKEN setting.
+    ``event_name`` is the event name to record.
+    ``properties`` is a dict of key/value pairs (optional).
+    ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
     log.info("Recording event: <%s>" % event_name)
 
@@ -58,7 +52,7 @@ def event_tracker(event_name, properties=None, token=None):
     try:
         result = _send_request(url_params)
     except FailedEventRequest as e:
-        log.info("Event failed. Retrying: <%s>" % event_name)
+        log.info("Event failed. Retrying: %r" % event_name)
         raise event_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
     return result
 
@@ -67,16 +61,13 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None):
     """
     Track an event occurrence to mixpanel through the API.
 
-    ``funnel`` is the string for the funnel you'd like to log
-    this event under
-    ``step`` the step in the funnel you're registering
-    ``goal`` the end goal of this funnel
-    ``properties`` is a dictionary of key/value pairs
-    describing the funnel event. A ``distinct_id`` is required.
-    ``token`` is (optionally) your Mixpanel api token. Not required if
-    you've already configured your MIXPANEL_API_TOKEN setting.
+    ``funnel`` is funnel name for this event.
+    ``step`` is the step in the funnel.
+    ``goal`` is the final step in the funnel.
+    ``properties`` is a dict of key/value pairs which must contain ``distinct_id``.
+    ``token`` overrides MIXPANEL_API_TOKEN (optional).
     """
-    log.info("Recording funnel: <%s>-<%s>" % (funnel, step))
+    log.info("Recording funnel: %r, step: %r" % (funnel, step))
     properties = _handle_properties(properties, token)
 
     properties = _add_funnel_properties(properties, funnel, step, goal)
@@ -86,7 +77,7 @@ def funnel_event_tracker(funnel, step, goal, properties, token=None):
     try:
         result = _send_request(url_params)
     except FailedEventRequest as e:
-        log.info("Funnel failed. Retrying: <%s>-<%s>" % (funnel, step))
+        log.info("Funnel failed. Retrying: %r, step: %r" % (funnel, step))
         raise funnel_event_tracker.retry(exc=e, countdown=mp_settings.MIXPANEL_RETRY_DELAY)
     return result
 
@@ -170,4 +161,3 @@ def _add_funnel_properties(properties, funnel, step, goal):
     properties['goal'] = goal
 
     return properties
-
