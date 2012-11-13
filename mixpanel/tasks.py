@@ -1,22 +1,19 @@
+from __future__ import absolute_import
+
 import httplib
 import urllib
 import base64
 import socket
 
+from celery.task import task
 from celery.utils.log import get_task_logger
 log = get_task_logger(__name__)
 
 from django.utils import simplejson
-from django.conf import settings
 
-from celery import Celery
+from .conf import settings as mp_settings
 
-from mixpanel.conf import settings as mp_settings
-
-celery = Celery('mixpanel')
-celery.config_from_object(settings)
-
-@celery.task(name="mixpanel.tasks.PeopleTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(name="mixpanel.tasks.PeopleTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def people_tracker(distinct_id, properties=None, token=None, test=None, throw_retry_error=False):
     """
     Track an event occurrence to mixpanel through the API.
@@ -49,7 +46,7 @@ def people_tracker(distinct_id, properties=None, token=None, test=None, throw_re
     conn.close()
     return result
 
-@celery.task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(name="mixpanel.tasks.EventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def event_tracker(event_name, properties=None, token=None, test=None, throw_retry_error=False):
     """
     Track an event occurrence to mixpanel through the API.
@@ -84,7 +81,7 @@ def event_tracker(event_name, properties=None, token=None, test=None, throw_retr
     conn.close()
     return result
 
-@celery.task(name="mixpanel.tasks.FunnelEventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
+@task(name="mixpanel.tasks.FunnelEventTracker", max_retries=mp_settings.MIXPANEL_MAX_RETRIES)
 def funnel_event_tracker(funnel, step, goal, properties, token=None, test=None,
         throw_retry_error=False):
     """
