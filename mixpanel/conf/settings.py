@@ -1,7 +1,5 @@
 """Default configuration values and documentation"""
 
-from django.conf import settings
-
 """
 .. data:: MIXPANEL_API_TOKEN
 
@@ -13,7 +11,7 @@ from django.conf import settings
 
     .. _`mixpanel account page`: http://mixpanel.com/user/account/
 """
-MIXPANEL_API_TOKEN = getattr(settings, 'MIXPANEL_API_TOKEN', None)
+MIXPANEL_API_TOKEN = None
 
 """
 .. data:: MIXPANEL_RETRY_DELAY
@@ -24,7 +22,7 @@ MIXPANEL_API_TOKEN = getattr(settings, 'MIXPANEL_API_TOKEN', None)
 
     Defaults to 5 minutes.
 """
-MIXPANEL_RETRY_DELAY = getattr(settings, 'MIXPANEL_RETRY_DELAY', 60*5)
+MIXPANEL_RETRY_DELAY = 60*5
 
 """
 .. data:: MIXPANEL_MAX_RETRIES
@@ -33,7 +31,7 @@ MIXPANEL_RETRY_DELAY = getattr(settings, 'MIXPANEL_RETRY_DELAY', 60*5)
 
     Defaults to 5 attempts.
 """
-MIXPANEL_MAX_RETRIES = getattr(settings, 'MIXPANEL_MAX_RETRIES', 5)
+MIXPANEL_MAX_RETRIES = 5
 
 """
 .. data:: MIXPANEL_API_TIMEOUT
@@ -44,15 +42,14 @@ MIXPANEL_MAX_RETRIES = getattr(settings, 'MIXPANEL_MAX_RETRIES', 5)
 
     Defaults to 5 seconds.
 """
-MIXPANEL_API_TIMEOUT = getattr(settings, 'MIXPANEL_API_TIMEOUT', 5)
+MIXPANEL_API_TIMEOUT = 5
 
 """
 .. data:: MIXPANEL_API_SERVER
 
     URL for the mixpanel api server. This probably shouldn't change.
 """
-MIXPANEL_API_SERVER = getattr(settings, 'MIXPANEL_API_SERVER',
-                               'api.mixpanel.com')
+MIXPANEL_API_SERVER = 'api.mixpanel.com'
 
 """
 .. data:: MIXPANEL_TRACKING_ENDPOINT
@@ -61,8 +58,7 @@ MIXPANEL_API_SERVER = getattr(settings, 'MIXPANEL_API_SERVER',
 
     Mind the slashes.
 """
-MIXPANEL_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_TRACKING_ENDPOINT',
-                               '/track/')
+MIXPANEL_TRACKING_ENDPOINT = '/track/'
 
 """
 .. data:: MIXPANEL_PEOPLE_TRACKING_ENDPOINT
@@ -71,8 +67,7 @@ MIXPANEL_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_TRACKING_ENDPOINT',
 
     Mind the slashes.
 """
-MIXPANEL_PEOPLE_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_PEOPLE_TRACKING_ENDPOINT',
-    '/engage/')
+MIXPANEL_PEOPLE_TRACKING_ENDPOINT = '/engage/'
 
 """
 .. data:: MIXPANEL_DATA_VARIABLE
@@ -80,8 +75,7 @@ MIXPANEL_PEOPLE_TRACKING_ENDPOINT = getattr(settings, 'MIXPANEL_PEOPLE_TRACKING_
     Name of the http GET variable used for transferring property information
     when registering events.
 """
-MIXPANEL_DATA_VARIABLE = getattr(settings, 'MIXPANEL_DATA_VARIABLE',
-                               'data')
+MIXPANEL_DATA_VARIABLE = 'data'
 
 
 """
@@ -90,5 +84,4 @@ MIXPANEL_DATA_VARIABLE = getattr(settings, 'MIXPANEL_DATA_VARIABLE',
     The event identifier that indicates that a funnel is being tracked and not
     just a normal event.
 """
-MIXPANEL_FUNNEL_EVENT_ID = getattr(settings, 'MIXPANEL_FUNNEL_EVENT_ID',
-                               'mp_funnel')
+MIXPANEL_FUNNEL_EVENT_ID = 'mp_funnel'

@@ -9,7 +9,7 @@ from celery.task import task
 from celery.utils.log import get_task_logger
 log = get_task_logger(__name__)
 
-from django.utils import simplejson
+import simplejson
 
 from .conf import settings as mp_settings
 

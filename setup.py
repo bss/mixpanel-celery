@@ -59,10 +59,9 @@ setup(
     package_data=get_package_data('mixpanel'),
     scripts=[],
     zip_safe=False,
-    install_requires=['celery>=3.0', 'django>=1.3'],
+    install_requires=['celery>=3.0'],
     classifiers=[
         "Development Status :: 4 - Beta",
-        "Framework :: Django",
         "Programming Language :: Python",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: BSD License",

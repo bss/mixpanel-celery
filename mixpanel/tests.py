@@ -24,6 +24,9 @@ class TestCase(unittest.TestCase):
         self.mock_urlopen = patcher.start()
         self.mock_urlopen.return_value.read.return_value = '1'
 
+        # Setup token for mixpanel
+        mp_settings.MIXPANEL_API_TOKEN = 'testmixpanel'
+
     @staticmethod
     def assertDictEqual(a, b):
         assert a == b, "Dicts are not equal.\nExpected: %s\nActual: %s" % (

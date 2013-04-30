@@ -12,9 +12,6 @@ events. You want to perform your tracking asynchronously, because waiting for HT
 requests to Mixpanel to complete every time you want to record something important
 isn't ideal when you've already worked so hard to tune your performance.
 
-mixpanel-celery works great with Django, but because Celery works with just
-python, so does mixpanel-celery.
-
 Installation
 ============
 
@@ -61,18 +58,7 @@ example, to only run a  single test
 Configuration
 =============
 
-For easy test usage with Django, set your Mixpanel api token in your project's
-``settings.py`` file with the ``MIXPANEL_API_TOKEN`` variable. Then set::
-
-    CELERY_ALWAYS_EAGER = True
-
-So that all of your `Celery`_ tasks will run in-line for now.
-
-Then add ``mixpanel`` to your list of ``INSTALLED_APPS``.
-
-Note: Obviously you'll want to actually configure `Celery`_ using one of the
-many available backends for actual production use and `Celery`_ has great
-documentation on that.
+Configure `Celery`_ as usual, use tasks as seen below.
 
 Usage
 =====
@@ -81,31 +67,10 @@ Basic python example tracking an event called ``my_event``
 
 .. code-block:: python
 
-    from mixpanel.tasks import EventTracker
+    from mixpanel.tasks import event_tracker
 
-    et = EventTracker()
-    et.run('my_event', {'distinct_id': 1}, token='YOUR_API_TOKEN')
+    event_tracker.delay('my_event', {'distinct_id': 1}, token='YOUR_API_TOKEN')
 
-
-Example usage in a Django view
-
-.. code-block:: python
-
-    from mixpanel.tasks import EventTracker
-    from django.shortcuts import render_to_response
-
-    tracker = EventTracker()
-    track_event = lambda *a, **kw: tracker.run(*a, **kw)
-
-    def test_view(request, template='test/test_view.html'):
-        """
-        Show user a test page.
-        """
-        # We should record that the user hit this page
-        track_event('hit_test_view', {'distinct_id': request.user.pk})
-
-        context = RequestContext(request, {})
-        return render_to_response(template, context_instance=context)
 
 Building the Documentation
 ==========================
@@ -124,7 +89,7 @@ Bug Tracker
 
 If you have feedback about bugs, features or anything else, the github issue
 tracking is a great place to report them:
-http://github.com/winhamwr/mixpanel-celery/issues
+http://github.com/bss/mixpanel-celery/issues
 
 License
 =======

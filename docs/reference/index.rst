@@ -8,7 +8,6 @@
 .. toctree::
     :maxdepth: 2
 
-    mixpanel.models
     mixpanel.tasks
     mixpanel.conf
     mixpanel.conf.settings

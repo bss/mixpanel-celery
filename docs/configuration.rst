@@ -6,11 +6,7 @@ Mixpanel-celery's configuration looks a lot like `Celery`_'s configuration. All
 of the configuration directives will go in the same file you're using to
 configure `Celery`_.
 
-If you’re using celery in a Django project these settings should be defined in
-your projects ``settings.py`` file.
-
-In a regular Python environment using the default loader you must create the
-``celeryconfig.py`` module and make sure it is available on the Python path.
+You should setup celery as usual, using the additional tasks as you would any other task.
 
 Full instructions on settings up your `Celery`_ configuration are located at the
 `Celery Configuration Docs`_ page.
